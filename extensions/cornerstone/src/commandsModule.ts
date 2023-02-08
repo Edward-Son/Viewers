@@ -11,29 +11,53 @@ import {
   ReferenceLinesTool,
 } from '@cornerstonejs/tools';
 import { ServicesManager } from '@ohif/core';
+import { ContextMenu } from '@ohif/ui';
 
 import { getEnabledElement as OHIFgetEnabledElement } from './state';
 import CornerstoneViewportDownloadForm from './utils/CornerstoneViewportDownloadForm';
+import { connectToolsToMeasurementService } from './initMeasurementService';
 import callInputDialog from './utils/callInputDialog';
 import { setColormap } from './utils/colormap/transferFunctionHelpers';
 import toggleMPRHangingProtocol from './utils/mpr/toggleMPRHangingProtocol';
 import toggleStackImageSync from './utils/stackSync/toggleStackImageSync';
+import defaultContextMenu from './defaultContextMenu';
 
-const commandsModule = ({ servicesManager }) => {
+const commandsModule = ({ servicesManager, commandsManager }) => {
   const {
-    ViewportGridService,
-    ToolGroupService,
+    viewportGridService,
+    toolGroupService,
     cineService,
     toolbarService,
-    UIDialogService,
-    CornerstoneViewportService,
-    HangingProtocolService,
-    UINotificationService,
+    uiDialogService,
+    cornerstoneViewportService,
+    hangingProtocolService,
+    uiNotificationService,
+    customizationService,
+    displaySetService,
+    measurementService,
   } = (servicesManager as ServicesManager).services;
 
-  function _getActiveViewportEnabledElement() {
-    const { activeViewportIndex } = ViewportGridService.getState();
+  const contextMenuController = new ContextMenu.Controller(
+    servicesManager,
+    commandsManager
+  );
+
+  /* Measurement Service */
+  const measurementServiceSource = connectToolsToMeasurementService(
+    measurementService,
+    displaySetService,
+    cornerstoneViewportService
+  );
+
+  function _getActiveEnabledElement() {
+    const { activeViewportIndex } = viewportGridService.getState();
     const { element } = OHIFgetEnabledElement(activeViewportIndex) || {};
+
+    return element;
+  }
+
+  function _getActiveViewportEnabledElement() {
+    const element = _getActiveEnabledElement();
     const enabledElement = getEnabledElement(element);
     return enabledElement;
   }
@@ -68,16 +92,138 @@ const commandsModule = ({ servicesManager }) => {
       toolGroupIdToUse = toolGroup.id;
     }
 
-    const toolGroup = ToolGroupService.getToolGroup(toolGroupIdToUse);
+    const toolGroup = toolGroupService.getToolGroup(toolGroupIdToUse);
     return toolGroup;
   }
 
+  function _showViewerContextMenu(viewerElement, options) {
+    let defaultPointsPosition = [];
+    if (options.nearbyToolData) {
+      defaultPointsPosition = commandsManager.runCommand(
+        'getToolDataActiveCanvasPoints',
+        { toolData: options.nearbyToolData }
+      );
+    }
+
+    contextMenuController.showContextMenu(
+      options,
+      viewerElement,
+      defaultPointsPosition
+    );
+  }
+
   const actions = {
+    /** Show the specified context menu */
+    showViewerContextMenu: providedOptions => {
+      const viewerElement = _getActiveEnabledElement();
+
+      const options = { ...providedOptions };
+      const { event: evt } = options;
+      const { useSelectedAnnotation, nearbyToolData, menuName } = options;
+
+      if (menuName) {
+        Object.assign(
+          options,
+          customizationService.getModeCustomization(
+            menuName,
+            defaultContextMenu
+          )
+        );
+      }
+
+      if (useSelectedAnnotation && !nearbyToolData) {
+        const firstAnnotationSelected = getFirstAnnotationSelected(
+          viewerElement
+        );
+        // filter by allowed selected tools from config property (if there is any)
+        if (
+          !options.allowedSelectedTools ||
+          options.allowedSelectedTools.includes(
+            firstAnnotationSelected?.metadata?.toolName
+          )
+        ) {
+          options.nearbyToolData = firstAnnotationSelected;
+        } else {
+          return;
+        }
+      }
+
+      // TODO - make the checkProps richer by including the study metadata and display set.
+      options.checkProps = {
+        toolName: options.nearbyToolData?.metadata?.toolName,
+        value: options.nearbyToolData,
+        uid: options.nearbyToolData?.annotationUID,
+        nearbyToolData: options.nearbyToolData,
+      };
+
+      _showViewerContextMenu(viewerElement, options);
+    },
+
+    /** Close any viewer context menus currently displayed */
+    closeViewerContextMenu: () => {
+      contextMenuController.closeViewerContextMenu();
+    },
+
+    getNearbyToolData({ nearbyToolData, element, canvasCoordinates }) {
+      return (
+        nearbyToolData ??
+        cstUtils.getAnnotationNearPoint(element, canvasCoordinates)
+      );
+    },
+
+    // Measurement tool commands:
+    deleteMeasurement: ({ uid }) => {
+      if (uid) {
+        measurementServiceSource.remove(uid);
+      }
+    },
+    setLabel: ({ uid }) => {
+      const measurement = measurementService.getMeasurement(uid);
+
+      callInputDialog(
+        uiDialogService,
+        measurement,
+        (label, actionId) => {
+          if (actionId === 'cancel') {
+            return;
+          }
+
+          const updatedMeasurement = Object.assign({}, measurement, {
+            label,
+          });
+
+          measurementService.update(
+            updatedMeasurement.uid,
+            updatedMeasurement,
+            true
+          );
+        },
+        false
+      );
+    },
+
+    updateMeasurement: props => {
+      const { code, uid, measurementKey = 'finding' } = props;
+      const measurement = measurementService.getMeasurement(uid);
+      const updatedMeasurement = {
+        ...measurement,
+        [measurementKey]: code,
+        label: code.text,
+      };
+      measurementService.update(
+        updatedMeasurement.uid,
+        updatedMeasurement,
+        true
+      );
+    },
+
+    // Retrieve value commands
+    getActiveEnabledElement: _getActiveEnabledElement,
     getActiveViewportEnabledElement: () => {
       return _getActiveViewportEnabledElement();
     },
     setViewportActive: ({ viewportId }) => {
-      const viewportInfo = CornerstoneViewportService.getViewportInfo(
+      const viewportInfo = cornerstoneViewportService.getViewportInfo(
         viewportId
       );
       if (!viewportInfo) {
@@ -86,13 +232,13 @@ const commandsModule = ({ servicesManager }) => {
       }
 
       const viewportIndex = viewportInfo.getViewportIndex();
-      ViewportGridService.setActiveViewportIndex(viewportIndex);
+      viewportGridService.setActiveViewportIndex(viewportIndex);
     },
     arrowTextCallback: ({ callback, data }) => {
-      callInputDialog(UIDialogService, data, callback);
+      callInputDialog(uiDialogService, data, callback);
     },
     toggleCine: () => {
-      const { viewports } = ViewportGridService.getState();
+      const { viewports } = viewportGridService.getState();
       const { isCineEnabled } = cineService.getState();
       cineService.setIsCineEnabled(!isCineEnabled);
       toolbarService.setButton('Cine', { props: { isActive: !isCineEnabled } });
@@ -106,7 +252,7 @@ const commandsModule = ({ servicesManager }) => {
       const windowCenterNum = Number(level);
 
       const { viewportId } = _getActiveViewportEnabledElement();
-      const viewportToolGroupId = ToolGroupService.getToolGroupForViewport(
+      const viewportToolGroupId = toolGroupService.getToolGroupForViewport(
         viewportId
       );
 
@@ -115,7 +261,7 @@ const commandsModule = ({ servicesManager }) => {
       }
 
       // get actor from the viewport
-      const renderingEngine = CornerstoneViewportService.getRenderingEngine();
+      const renderingEngine = cornerstoneViewportService.getRenderingEngine();
       const viewport = renderingEngine.getViewport(viewportId);
 
       const { lower, upper } = csUtils.windowLevel.toLowHighRange(
@@ -136,7 +282,7 @@ const commandsModule = ({ servicesManager }) => {
         const activeViewportToolGroup = _getToolGroup(null);
 
         if (!activeViewportToolGroup._toolInstances.Crosshairs) {
-          UINotificationService.show({
+          uiNotificationService.show({
             title: 'Crosshairs',
             message:
               'You need to be in a MPR view to use Crosshairs. Click on MPR button in the toolbar to activate it.',
@@ -148,7 +294,7 @@ const commandsModule = ({ servicesManager }) => {
         }
       }
 
-      const { viewports } = ViewportGridService.getState() || {
+      const { viewports } = viewportGridService.getState() || {
         viewports: [],
       };
 
@@ -195,7 +341,7 @@ const commandsModule = ({ servicesManager }) => {
       });
     },
     showDownloadViewportModal: () => {
-      const { activeViewportIndex } = ViewportGridService.getState();
+      const { activeViewportIndex } = viewportGridService.getState();
       const { UIModalService } = servicesManager.services;
 
       if (UIModalService) {
@@ -205,7 +351,7 @@ const commandsModule = ({ servicesManager }) => {
           contentProps: {
             activeViewportIndex,
             onClose: UIModalService.hide,
-            CornerstoneViewportService,
+            CornerstoneViewportService: cornerstoneViewportService,
           },
         });
       }
@@ -378,7 +524,7 @@ const commandsModule = ({ servicesManager }) => {
       colormap,
       immediate = false,
     }) => {
-      const viewport = CornerstoneViewportService.getCornerstoneViewportByIndex(
+      const viewport = cornerstoneViewportService.getCornerstoneViewportByIndex(
         viewportIndex
       );
 
@@ -397,18 +543,18 @@ const commandsModule = ({ servicesManager }) => {
       }
     },
     incrementActiveViewport: () => {
-      const { activeViewportIndex, viewports } = ViewportGridService.getState();
+      const { activeViewportIndex, viewports } = viewportGridService.getState();
       const nextViewportIndex = (activeViewportIndex + 1) % viewports.length;
-      ViewportGridService.setActiveViewportIndex(nextViewportIndex);
+      viewportGridService.setActiveViewportIndex(nextViewportIndex);
     },
     decrementActiveViewport: () => {
-      const { activeViewportIndex, viewports } = ViewportGridService.getState();
+      const { activeViewportIndex, viewports } = viewportGridService.getState();
       const nextViewportIndex =
         (activeViewportIndex - 1 + viewports.length) % viewports.length;
-      ViewportGridService.setActiveViewportIndex(nextViewportIndex);
+      viewportGridService.setActiveViewportIndex(nextViewportIndex);
     },
     setHangingProtocol: ({ protocolId }) => {
-      HangingProtocolService.setProtocol(protocolId);
+      hangingProtocolService.setProtocol(protocolId);
     },
     toggleMPR: ({ toggledState }) => {
       toggleMPRHangingProtocol({
@@ -425,13 +571,13 @@ const commandsModule = ({ servicesManager }) => {
       });
     },
     toggleReferenceLines: ({ toggledState }) => {
-      const { activeViewportIndex } = ViewportGridService.getState();
-      const viewportInfo = CornerstoneViewportService.getViewportInfoByIndex(
+      const { activeViewportIndex } = viewportGridService.getState();
+      const viewportInfo = cornerstoneViewportService.getViewportInfoByIndex(
         activeViewportIndex
       );
 
       const viewportId = viewportInfo.getViewportId();
-      const toolGroup = ToolGroupService.getToolGroupForViewport(viewportId);
+      const toolGroup = toolGroupService.getToolGroupForViewport(viewportId);
 
       if (!toggledState) {
         toolGroup.setToolDisabled(ReferenceLinesTool.toolName);
@@ -449,6 +595,43 @@ const commandsModule = ({ servicesManager }) => {
   };
 
   const definitions = {
+    showViewerContextMenu: {
+      commandFn: actions.showViewerContextMenu,
+      storeContexts: [],
+      options: {},
+    },
+    closeViewerContextMenu: {
+      commandFn: actions.closeViewerContextMenu,
+      storeContexts: [],
+      options: {},
+    },
+    getNearbyToolData: {
+      commandFn: actions.getNearbyToolData,
+      storeContexts: [],
+      options: {},
+    },
+
+    deleteMeasurement: {
+      commandFn: actions.deleteMeasurement,
+      storeContexts: [],
+      options: {},
+    },
+    setLabel: {
+      commandFn: actions.setLabel,
+      storeContexts: [],
+      options: {},
+    },
+    setFinding: {
+      commandFn: actions.updateMeasurement,
+      storeContexts: [],
+      options: { measurementKey: 'finding' },
+    },
+    setSite: {
+      commandFn: actions.updateMeasurement,
+      storeContexts: [],
+      options: { measurementKey: 'site' },
+    },
+
     setWindowLevel: {
       commandFn: actions.setWindowLevel,
       storeContexts: [],
