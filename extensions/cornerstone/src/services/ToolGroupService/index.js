@@ -2,7 +2,8 @@ import ToolGroupService from './ToolGroupService';
 
 export default function ExtendedToolGroupService(serviceManager) {
   return {
-    name: 'ToolGroupService',
+    name: 'toolGroupService',
+    altName: 'ToolGroupService',
     create: ({ configuration = {} }) => {
       return new ToolGroupService(serviceManager);
     },
