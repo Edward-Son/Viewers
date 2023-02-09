@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import { ServicesManager } from '@ohif/core';
 import { MeasurementTable, Dialog, Input, useViewportGrid } from '@ohif/ui';
 import ActionButtons from './ActionButtons';
 import debounce from 'lodash.debounce';
@@ -9,7 +10,7 @@ import createReportDialogPrompt, {
   CREATE_REPORT_DIALOG_RESPONSE,
 } from './createReportDialogPrompt';
 import createReportAsync from '../Actions/createReportAsync';
-import getNextSRSeriesNumber from '../utils/getNextSRSeriesNumber';
+import getSameSeriesOptions from '../utils/getSameSeriesOptions';
 
 const { downloadCSVReport } = utils;
 
@@ -21,11 +22,11 @@ export default function PanelMeasurementTable({
   const [viewportGrid, viewportGridService] = useViewportGrid();
   const { activeViewportIndex, viewports } = viewportGrid;
   const {
-    MeasurementService,
-    UIDialogService,
-    UINotificationService,
-    DisplaySetService,
-  } = servicesManager.services;
+    measurementService,
+    uiDialogService,
+    uiNotificationService,
+    displaySetService,
+  } = (servicesManager as ServicesManager).services;
   const [displayMeasurements, setDisplayMeasurements] = useState([]);
 
   useEffect(() => {
@@ -34,21 +35,21 @@ export default function PanelMeasurementTable({
       100
     );
     // ~~ Initial
-    setDisplayMeasurements(_getMappedMeasurements(MeasurementService));
+    setDisplayMeasurements(_getMappedMeasurements(measurementService));
 
     // ~~ Subscription
-    const added = MeasurementService.EVENTS.MEASUREMENT_ADDED;
-    const addedRaw = MeasurementService.EVENTS.RAW_MEASUREMENT_ADDED;
-    const updated = MeasurementService.EVENTS.MEASUREMENT_UPDATED;
-    const removed = MeasurementService.EVENTS.MEASUREMENT_REMOVED;
-    const cleared = MeasurementService.EVENTS.MEASUREMENTS_CLEARED;
+    const added = measurementService.EVENTS.MEASUREMENT_ADDED;
+    const addedRaw = measurementService.EVENTS.RAW_MEASUREMENT_ADDED;
+    const updated = measurementService.EVENTS.MEASUREMENT_UPDATED;
+    const removed = measurementService.EVENTS.MEASUREMENT_REMOVED;
+    const cleared = measurementService.EVENTS.MEASUREMENTS_CLEARED;
     const subscriptions = [];
 
     [added, addedRaw, updated, removed, cleared].forEach(evt => {
       subscriptions.push(
-        MeasurementService.subscribe(evt, () => {
+        measurementService.subscribe(evt, () => {
           debouncedSetDisplayMeasurements(
-            _getMappedMeasurements(MeasurementService)
+            _getMappedMeasurements(measurementService)
           );
         }).unsubscribe
       );
@@ -63,20 +64,20 @@ export default function PanelMeasurementTable({
   }, []);
 
   async function exportReport() {
-    const measurements = MeasurementService.getMeasurements();
+    const measurements = measurementService.getMeasurements();
 
-    downloadCSVReport(measurements, MeasurementService);
+    downloadCSVReport(measurements, measurementService);
   }
 
   async function clearMeasurements() {
-    MeasurementService.clearMeasurements();
+    measurementService.clearMeasurements();
   }
 
   async function createReport() {
     // filter measurements that are added to the active study
     const activeViewport = viewports[activeViewportIndex];
-    const measurements = MeasurementService.getMeasurements();
-    const displaySet = DisplaySetService.getDisplaySetByUID(
+    const measurements = measurementService.getMeasurements();
+    const displaySet = displaySetService.getDisplaySetByUID(
       activeViewport.displaySetInstanceUIDs[0]
     );
     const trackedMeasurements = measurements.filter(
@@ -84,7 +85,7 @@ export default function PanelMeasurementTable({
     );
 
     if (trackedMeasurements.length <= 0) {
-      UINotificationService.show({
+      uiNotificationService.show({
         title: 'No Measurements',
         message: 'No Measurements are added to the current Study.',
         type: 'info',
@@ -93,7 +94,7 @@ export default function PanelMeasurementTable({
       return;
     }
 
-    const promptResult = await createReportDialogPrompt(UIDialogService, {
+    const promptResult = await createReportDialogPrompt(uiDialogService, {
       extensionManager,
     });
 
@@ -109,36 +110,36 @@ export default function PanelMeasurementTable({
           ? 'Research Derived Series' // default
           : promptResult.value; // provided value
 
-      const SeriesNumber = getNextSRSeriesNumber(DisplaySetService);
+      const options = getSameSeriesOptions(
+        SeriesDescription,
+        displaySetService
+      );
 
       const displaySetInstanceUIDs = await createReportAsync(
         servicesManager,
         commandsManager,
         dataSource,
         trackedMeasurements,
-        {
-          SeriesDescription,
-          SeriesNumber,
-        }
+        options
       );
     }
   }
 
   const jumpToImage = ({ uid, isActive }) => {
-    MeasurementService.jumpToMeasurement(viewportGrid.activeViewportIndex, uid);
+    measurementService.jumpToMeasurement(viewportGrid.activeViewportIndex, uid);
 
     onMeasurementItemClickHandler({ uid, isActive });
   };
 
   const onMeasurementItemEditHandler = ({ uid, isActive }) => {
-    const measurement = MeasurementService.getMeasurement(uid);
+    const measurement = measurementService.getMeasurement(uid);
     //Todo: why we are jumping to image?
     // jumpToImage({ id, isActive });
 
     const onSubmitHandler = ({ action, value }) => {
       switch (action.id) {
         case 'save': {
-          MeasurementService.update(
+          measurementService.update(
             uid,
             {
               ...measurement,
@@ -148,10 +149,10 @@ export default function PanelMeasurementTable({
           );
         }
       }
-      UIDialogService.dismiss({ id: 'enter-annotation' });
+      uiDialogService.dismiss({ id: 'enter-annotation' });
     };
 
-    UIDialogService.create({
+    uiDialogService.create({
       id: 'enter-annotation',
       centralize: true,
       isDraggable: false,

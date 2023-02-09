@@ -1,6 +1,6 @@
 import { eventTarget } from '@cornerstonejs/core';
 import { Enums, annotation } from '@cornerstonejs/tools';
-import { DicomMetadataStore } from '@ohif/core';
+import { DicomMetadataStore, MeasurementService } from '@ohif/core';
 
 import measurementServiceMappingsFactory from './utils/measurementServiceMappings/measurementServiceMappingsFactory';
 import getSOPInstanceAttributes from './utils/measurementServiceMappings/utils/getSOPInstanceAttributes';
@@ -13,7 +13,7 @@ const CORNERSTONE_3D_TOOLS_SOURCE_NAME = 'Cornerstone3DTools';
 const CORNERSTONE_3D_TOOLS_SOURCE_VERSION = '0.1';
 
 const initMeasurementService = (
-  MeasurementService,
+  measurementService: MeasurementService,
   DisplaySetService,
   CornerstoneViewportService
 ) => {
@@ -23,18 +23,23 @@ const initMeasurementService = (
     Bidirectional,
     EllipticalROI,
     ArrowAnnotate,
+    Angle,
+    CobbAngle,
+    RectangleROI,
+    PlanarFreehandROI,
+    ...customTools
   } = measurementServiceMappingsFactory(
-    MeasurementService,
+    measurementService,
     DisplaySetService,
     CornerstoneViewportService
   );
-  const csTools3DVer1MeasurementSource = MeasurementService.createSource(
+  const csTools3DVer1MeasurementSource = measurementService.createSource(
     CORNERSTONE_3D_TOOLS_SOURCE_NAME,
     CORNERSTONE_3D_TOOLS_SOURCE_VERSION
   );
 
   /* Mappings */
-  MeasurementService.addMapping(
+  measurementService.addMapping(
     csTools3DVer1MeasurementSource,
     'Length',
     Length.matchingCriteria,
@@ -42,7 +47,7 @@ const initMeasurementService = (
     Length.toMeasurement
   );
 
-  MeasurementService.addMapping(
+  measurementService.addMapping(
     csTools3DVer1MeasurementSource,
     'Bidirectional',
     Bidirectional.matchingCriteria,
@@ -50,7 +55,7 @@ const initMeasurementService = (
     Bidirectional.toMeasurement
   );
 
-  MeasurementService.addMapping(
+  measurementService.addMapping(
     csTools3DVer1MeasurementSource,
     'EllipticalROI',
     EllipticalROI.matchingCriteria,
@@ -58,7 +63,7 @@ const initMeasurementService = (
     EllipticalROI.toMeasurement
   );
 
-  MeasurementService.addMapping(
+  measurementService.addMapping(
     csTools3DVer1MeasurementSource,
     'ArrowAnnotate',
     ArrowAnnotate.matchingCriteria,
@@ -66,21 +71,68 @@ const initMeasurementService = (
     ArrowAnnotate.toMeasurement
   );
 
+  measurementService.addMapping(
+    csTools3DVer1MeasurementSource,
+    'CobbAngle',
+    CobbAngle.matchingCriteria,
+    CobbAngle.toAnnotation,
+    CobbAngle.toMeasurement
+  );
+
+  measurementService.addMapping(
+    csTools3DVer1MeasurementSource,
+    'Angle',
+    Angle.matchingCriteria,
+    Angle.toAnnotation,
+    Angle.toMeasurement
+  );
+
+  measurementService.addMapping(
+    csTools3DVer1MeasurementSource,
+    'RectangleROI',
+    RectangleROI.matchingCriteria,
+    RectangleROI.toAnnotation,
+    RectangleROI.toMeasurement
+  );
+
+  measurementService.addMapping(
+    csTools3DVer1MeasurementSource,
+    'PlanarFreehandROI',
+    PlanarFreehandROI.matchingCriteria,
+    PlanarFreehandROI.toAnnotation,
+    PlanarFreehandROI.toMeasurement
+  );
+
+  // add any existing custom tools
+  Object.keys(customTools).forEach(key => {
+    const CustomTool = customTools[key];
+
+    if (CustomTool) {
+      measurementService.addMapping(
+        csTools3DVer1MeasurementSource,
+        key,
+        CustomTool.matchingCriteria,
+        CustomTool.toAnnotation,
+        CustomTool.toMeasurement
+      );
+    }
+  });
+
   return csTools3DVer1MeasurementSource;
 };
 
 const connectToolsToMeasurementService = (
-  MeasurementService,
+  measurementService: MeasurementService,
   DisplaySetService,
   CornerstoneViewportService
 ) => {
   const csTools3DVer1MeasurementSource = initMeasurementService(
-    MeasurementService,
+    measurementService,
     DisplaySetService,
     CornerstoneViewportService
   );
   connectMeasurementServiceToTools(
-    MeasurementService,
+    measurementService,
     CornerstoneViewportService,
     csTools3DVer1MeasurementSource
   );
@@ -113,7 +165,7 @@ const connectToolsToMeasurementService = (
       } = annotationModifiedEventDetail;
 
       // If the measurement hasn't been added, don't modify it
-      const measurement = MeasurementService.getMeasurement(annotationUID);
+      const measurement = measurementService.getMeasurement(annotationUID);
 
       if (!measurement) {
         return;
@@ -138,13 +190,13 @@ const connectToolsToMeasurementService = (
 
       if (removedSelectedAnnotationUIDs) {
         removedSelectedAnnotationUIDs.forEach(annotationUID =>
-          MeasurementService.setMeasurementSelected(annotationUID, false)
+          measurementService.setMeasurementSelected(annotationUID, false)
         );
       }
 
       if (addedSelectedAnnotationUIDs) {
         addedSelectedAnnotationUIDs.forEach(annotationUID =>
-          MeasurementService.setMeasurementSelected(annotationUID, true)
+          measurementService.setMeasurementSelected(annotationUID, true)
         );
       }
     } catch (error) {
@@ -166,7 +218,7 @@ const connectToolsToMeasurementService = (
           annotation: { annotationUID },
         } = annotationRemovedEventDetail;
 
-        const measurement = MeasurementService.getMeasurement(annotationUID);
+        const measurement = measurementService.getMeasurement(annotationUID);
 
         if (measurement) {
           console.log('~~ removeEvt', csToolsEvent);

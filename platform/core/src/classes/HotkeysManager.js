@@ -181,9 +181,9 @@ export class HotkeysManager {
     if (previouslyRegisteredDefinition) {
       const previouslyRegisteredKeys = previouslyRegisteredDefinition.keys;
       this._unbindHotkeys(commandName, previouslyRegisteredKeys);
-      log.info(
-        `[hotkeys] Unbinding ${commandName} with ${options} options from ${previouslyRegisteredKeys}`
-      );
+      // log.info(
+      //   `[hotkeys] Unbinding ${commandName} with ${options} options from ${previouslyRegisteredKeys}`
+      // );
     }
 
     // Set definition & bind
@@ -195,9 +195,9 @@ export class HotkeysManager {
       isEditable,
     };
     this._bindHotkeys(commandName, commandOptions, keys);
-    log.info(
-      `[hotkeys] Binding ${commandName} with ${options} options to ${keys}`
-    );
+    // log.info(
+    //   `[hotkeys] Binding ${commandName} with ${options} options to ${keys}`
+    // );
   }
 
   /**
