@@ -215,6 +215,7 @@ export default function PanelMeasurementTable({
       >
         <MeasurementTable
           title="Measurements"
+          servicesManager={servicesManager}
           data={displayMeasurements}
           onClick={jumpToImage}
           onEdit={onMeasurementItemEditHandler}
@@ -251,17 +252,30 @@ function _getMappedMeasurements(MeasurementService) {
     _mapMeasurementToDisplay(m, index, MeasurementService.VALUE_TYPES)
   );
 
+  console.log('Mapped measurements', JSON.stringify(mappedMeasurements));
   return mappedMeasurements;
 }
 
 function _mapMeasurementToDisplay(measurement, index, types) {
-  const { displayText, uid, label, type, selected } = measurement;
+  const {
+    displayText,
+    uid,
+    label,
+    type,
+    selected,
+    site,
+    findingSites,
+    finding,
+  } = measurement;
 
   return {
     uid,
-    label: label || '(empty)',
+    label,
     measurementType: type,
     displayText: displayText || [],
     isActive: selected,
+    site: site || findingSites?.[0],
+    finding,
+    findingSites,
   };
 }

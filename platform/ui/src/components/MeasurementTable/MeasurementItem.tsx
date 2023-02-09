@@ -11,6 +11,7 @@ const MeasurementItem = ({
   isActive,
   onClick,
   onEdit,
+  item,
 }) => {
   const [isHovering, setIsHovering] = useState(false);
 
@@ -23,6 +24,16 @@ const MeasurementItem = ({
 
   const onMouseEnter = () => setIsHovering(true);
   const onMouseLeave = () => setIsHovering(false);
+
+  const { site, finding } = item;
+  const useLabel = label || site?.text || finding?.text || '(empty)';
+  let useDisplayText = displayText;
+  if (finding && finding?.text !== useLabel) {
+    useDisplayText = [finding.text, ...useDisplayText];
+  }
+  if (site && site?.text !== useLabel) {
+    useDisplayText = [site.text, ...useDisplayText];
+  }
 
   return (
     <div
@@ -51,8 +62,8 @@ const MeasurementItem = ({
         {index}
       </div>
       <div className="relative flex flex-col flex-1 px-2 py-1">
-        <span className="mb-1 text-base text-primary-light">{label}</span>
-        {displayText.map((line, i) => (
+        <span className="mb-1 text-base text-primary-light">{useLabel}</span>
+        {useDisplayText.map((line, i) => (
           <span
             key={i}
             className="pl-2 text-base text-white border-l border-primary-light"

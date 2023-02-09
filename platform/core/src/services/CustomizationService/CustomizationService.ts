@@ -145,6 +145,16 @@ export default class CustomizationService extends PubSubService {
     });
   }
 
+  /** This is the preferred getter, getting mode customizations first and
+   * otherwise global customizations.
+   */
+  public getCustomization(
+    customizationId: string,
+    defaultValue?: Customization
+  ): Customization | void {
+    return this.getModeCustomization(customizationId, defaultValue);
+  }
+
   /** Mode customizations are changes to the behaviour of the extensions
    * when running in a given mode.  Reset clears mode customizations.
    * Note that global customizations over-ride mode customizations.

@@ -203,13 +203,27 @@ const commandsModule = ({ servicesManager, commandsManager }) => {
     },
 
     updateMeasurement: props => {
-      const { code, uid, measurementKey = 'finding' } = props;
+      const { code, uid, measurementKey = 'finding', textLabel } = props;
       const measurement = measurementService.getMeasurement(uid);
       const updatedMeasurement = {
         ...measurement,
-        [measurementKey]: code,
-        label: code.text,
       };
+      // Call it textLabel as the label value
+      if (textLabel !== undefined) {
+        updatedMeasurement.label = textLabel;
+      }
+      if (code !== undefined) {
+        if (code.ref && !code.CodeValue) {
+          const split = code.ref.indexOf(':');
+          code.CodeValue = code.ref.substring(split + 1);
+          code.CodeMeaning = code.text;
+          code.CodingSchemeDesignator = code.ref.substring(0, split);
+        }
+        updatedMeasurement[measurementKey] = code;
+        if (measurementKey === 'site') {
+          updatedMeasurement.findingSites = code ? [code] : [];
+        }
+      }
       measurementService.update(
         updatedMeasurement.uid,
         updatedMeasurement,

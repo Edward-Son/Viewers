@@ -59,6 +59,7 @@ export default async function init({
   const {
     UserAuthenticationService,
     customizationService,
+    displaySetService,
     UIModalService,
     UINotificationService,
     cineService,
