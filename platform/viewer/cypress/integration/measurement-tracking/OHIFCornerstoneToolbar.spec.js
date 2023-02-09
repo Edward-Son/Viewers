@@ -1,3 +1,6 @@
+async function sleep(msec) {
+  return new Promise(resolve => setTimeout(resolve, msec));
+}
 describe('OHIF Cornerstone Toolbar', () => {
   before(() => {
     cy.checkStudyRouteInViewer(
@@ -74,7 +77,7 @@ describe('OHIF Cornerstone Toolbar', () => {
   //   cy.get('@viewportInfoTopLeft').should('have.text', expectedText);
   // });
 
-  it('checks if Levels tool will change the window width and center of an image', () => {
+  it('checks if Levels tool will change the window width and center of an image', async () => {
     //Click on button and verify if icon is active on toolbar
     cy.get('@wwwcBtnPrimary')
       .click()
@@ -83,11 +86,14 @@ describe('OHIF Cornerstone Toolbar', () => {
       });
 
     //drags the mouse inside the viewport to be able to interact with series
-    cy.get('@viewport')
+    const viewport = cy
+      .get('@viewport')
       .click({ force: true })
-      .trigger('mousedown', 'center', { buttons: 1 })
-      // Since we have scrollbar on the right side of the viewport, we need to
-      // force the mousemove since it goes to another element
+      .trigger('mousedown', 'center', { buttons: 1 });
+    await sleep(900);
+    // Since we have scrollbar on the right side of the viewport, we need to
+    // force the mousemove since it goes to another element
+    viewport
       .trigger('mousemove', 'right', { buttons: 1, force: true })
       .trigger('mouseup', { buttons: 1 });
 
