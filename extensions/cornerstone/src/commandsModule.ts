@@ -21,6 +21,7 @@ import { setColormap } from './utils/colormap/transferFunctionHelpers';
 import toggleMPRHangingProtocol from './utils/mpr/toggleMPRHangingProtocol';
 import toggleStackImageSync from './utils/stackSync/toggleStackImageSync';
 import defaultContextMenu from './defaultContextMenu';
+import { getFirstAnnotationSelected } from './utils/measurementServiceMappings/utils/selection';
 
 const commandsModule = ({ servicesManager, commandsManager }) => {
   const {
@@ -40,13 +41,6 @@ const commandsModule = ({ servicesManager, commandsManager }) => {
   const contextMenuController = new ContextMenu.Controller(
     servicesManager,
     commandsManager
-  );
-
-  /* Measurement Service */
-  const measurementServiceSource = connectToolsToMeasurementService(
-    measurementService,
-    displaySetService,
-    cornerstoneViewportService
   );
 
   function _getActiveEnabledElement() {
@@ -174,7 +168,7 @@ const commandsModule = ({ servicesManager, commandsManager }) => {
     // Measurement tool commands:
     deleteMeasurement: ({ uid }) => {
       if (uid) {
-        measurementServiceSource.remove(uid);
+        measurementService.remove(uid);
       }
     },
     setLabel: ({ uid }) => {

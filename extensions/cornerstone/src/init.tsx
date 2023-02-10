@@ -1,4 +1,4 @@
-import OHIF from '@ohif/core';
+import OHIF, { ServicesManager } from '@ohif/core';
 import React from 'react';
 
 import * as cornerstone from '@cornerstonejs/core';
@@ -63,13 +63,21 @@ export default async function init({
     UIModalService,
     UINotificationService,
     cineService,
-    CornerstoneViewportService,
+    cornerstoneViewportService,
     HangingProtocolService,
     ToolGroupService,
     ViewportGridService,
-  } = servicesManager.services;
+    measurementService,
+  } = (servicesManager as ServicesManager).services;
 
   window.services = servicesManager.services;
+
+  /* Measurement Service */
+  connectToolsToMeasurementService(
+    measurementService,
+    displaySetService,
+    cornerstoneViewportService
+  );
 
   if (!window.crossOriginIsolated) {
     UINotificationService.show({
@@ -132,11 +140,11 @@ export default async function init({
     volumeInputArrayMap => {
       for (const entry of volumeInputArrayMap.entries()) {
         const [viewportId, volumeInputArray] = entry;
-        const viewport = CornerstoneViewportService.getCornerstoneViewport(
+        const viewport = cornerstoneViewportService.getCornerstoneViewport(
           viewportId
         );
 
-        CornerstoneViewportService.setVolumesForViewport(
+        cornerstoneViewportService.setVolumesForViewport(
           viewport,
           volumeInputArray
         );
@@ -145,7 +153,7 @@ export default async function init({
   );
 
   initContextMenu({
-    CornerstoneViewportService,
+    CornerstoneViewportService: cornerstoneViewportService,
     customizationService,
     commandsManager,
   });
