@@ -1,13 +1,41 @@
-import MODULE_TYPES from './MODULE_TYPES.js';
-import log from './../log.js';
+import MODULE_TYPES from './MODULE_TYPES';
+import log from '../log';
+import AppConfig from '../types/AppConfig';
+import { ServicesManager } from '../services';
+import { HotkeysManager, CommandsManager } from '../classes';
+
+export interface ExtensionConstructor {
+  servicesManager: ServicesManager;
+  commandsManager: CommandsManager;
+  hotkeysManager: HotkeysManager;
+  appConfig: AppConfig;
+}
+
+export type ExtensionConfiguration = Record<string, unknown>;
+
+export interface ExtensionParams extends ExtensionConstructor {
+  extensionManager: ExtensionManager;
+  configuration: ExtensionConfiguration;
+}
+
+/**
+ * Exports types for Extension
+ */
+export interface IExtension {
+  preRegistration: (p: ExtensionParams) => void;
+}
 
 export default class ExtensionManager {
+  private _commandsManager: CommandsManager;
+  private _servicesManager: ServicesManager;
+  private _hotkeysManager: HotkeysManager;
+
   constructor({
     commandsManager,
     servicesManager,
     hotkeysManager,
     appConfig = {},
-  }) {
+  }: ExtensionConstructor) {
     this.modules = {};
     this.registeredExtensionIds = [];
     this.moduleTypeNames = Object.values(MODULE_TYPES);
@@ -28,11 +56,17 @@ export default class ExtensionManager {
     this.activeDataSource = undefined;
   }
 
-  setActiveDataSource(dataSourceName) {
+  public setActiveDataSource(dataSourceName: string): void {
     this.activeDataSource = dataSourceName;
   }
 
-  onModeEnter() {
+  /**
+   * Calls all the services and extension on mode enters.
+   * The service onModeEnter is called first
+   * Then registered extensions onModeEnter is called
+   * This is supposed to setup the extension for a standard entry.
+   */
+  public onModeEnter(): void {
     const {
       registeredExtensionIds,
       _servicesManager,
@@ -136,7 +170,7 @@ export default class ExtensionManager {
       throw new Error('Attempting to register a null/undefined extension.');
     }
 
-    let extensionId = extension.id;
+    const extensionId = extension.id;
 
     if (!extensionId) {
       // Note: Mode framework cannot function without IDs.
@@ -203,6 +237,7 @@ export default class ExtensionManager {
           case MODULE_TYPES.CONTEXT:
           case MODULE_TYPES.LAYOUT_TEMPLATE:
           case MODULE_TYPES.CUSTOMIZATION:
+          case MODULE_TYPES.STATE_SYNC:
           case MODULE_TYPES.UTILITY:
             // Default for most extension points,
             // Just adds each entry ready for consumption by mode.
