@@ -190,8 +190,6 @@ export type {
   SyncGroup,
   initialImageOptions,
   DisplaySetInfo,
-  GlobalProtocolOptions,
-  ViewportSpecificProtocolOptions,
   DisplaySetAndViewportOptions,
   ProtocolGenerator,
 };
