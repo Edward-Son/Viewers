@@ -97,36 +97,6 @@ export default class CustomizationService extends PubSubService {
     this.modeCustomizations = {};
   }
 
-  /**
-   *
-   * @param {*} interaction - can be undefined to run nothing
-   * @param {*} extraOptions to include in the commands run
-   */
-  recordInteraction(
-    interaction: Customization | void,
-    extraOptions?: Record<string, unknown>
-  ): void {
-    if (!interaction) return;
-    const commandsManager = this.commandsManager;
-    const { commands = [] } = interaction;
-
-    commands.forEach(({ commandName, commandOptions, context }) => {
-      if (commandName) {
-        commandsManager.runCommand(
-          commandName,
-          {
-            interaction,
-            ...commandOptions,
-            ...extraOptions,
-          },
-          context
-        );
-      } else {
-        console.warn('No command name supplied in', interaction);
-      }
-    });
-  }
-
   public getModeCustomizations(): Record<string, Customization> {
     return this.modeCustomizations;
   }
